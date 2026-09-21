@@ -345,3 +345,4 @@ public class TrivyScannerService {
         return Paths.get(uploadDirConfig);
     }
 }
+
