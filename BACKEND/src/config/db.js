@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
+const env = require('./env');
 
 let isConnected = false;
 
 const connectDB = async () => {
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/vigidock';
+  const mongoUri = env.DATABASE_URL;
 
   try {
     await mongoose.connect(mongoUri, {

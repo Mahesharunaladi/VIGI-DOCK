@@ -3,6 +3,11 @@ const router = express.Router();
 const ScanController = require('../controllers/scan.controller');
 const upload = require('../middlewares/upload');
 
+// Health check for scan service
+router.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', service: 'scans' });
+});
+
 // POST /api/scans/image - Trigger Docker image scan
 router.post('/image', ScanController.triggerImageScan);
 

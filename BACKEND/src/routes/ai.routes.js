@@ -2,6 +2,11 @@ const express = require('express');
 const router = express.Router();
 const AiController = require('../controllers/ai.controller');
 
+// Health check for AI service
+router.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', service: 'ai' });
+});
+
 // POST /api/ai/explain-vulnerability - Plain-English explanation for single CVE
 router.post('/explain-vulnerability', AiController.explainVulnerability);
 
