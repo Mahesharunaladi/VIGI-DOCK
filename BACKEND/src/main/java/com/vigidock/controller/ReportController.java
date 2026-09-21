@@ -5,6 +5,7 @@ import com.vigidock.dto.ScanResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,7 +16,7 @@ import java.util.Collections;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/reports")
+@RequestMapping({"/api/reports", "/api/v1/reports"})
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class ReportController {
@@ -52,7 +53,6 @@ public class ReportController {
                 .scannedAt(LocalDateTime.now())
                 .build();
 
-        return ResponseEntity.ok(ApiResponse.success(response, "JSON report exported successfully"));
+        return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, response, "JSON report exported successfully"));
     }
 }
-

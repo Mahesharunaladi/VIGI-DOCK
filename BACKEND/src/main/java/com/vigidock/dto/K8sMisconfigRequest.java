@@ -21,3 +21,4 @@ public class K8sMisconfigRequest {
 
     private String severity;
 }
+
