@@ -10,3 +10,4 @@ import java.util.List;
 public interface ScanRecordRepository extends JpaRepository<ScanRecord, String> {
     List<ScanRecord> findAllByOrderByScannedAtDesc();
 }
+

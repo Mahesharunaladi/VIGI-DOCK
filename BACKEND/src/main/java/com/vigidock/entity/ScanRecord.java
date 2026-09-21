@@ -45,3 +45,4 @@ public class ScanRecord {
     @Builder.Default
     private LocalDateTime scannedAt = LocalDateTime.now();
 }
+
