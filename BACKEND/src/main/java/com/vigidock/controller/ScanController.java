@@ -3,6 +3,7 @@ package com.vigidock.controller;
 import com.vigidock.dto.ApiResponse;
 import com.vigidock.dto.ScanRequest;
 import com.vigidock.dto.ScanResponse;
+import com.vigidock.service.TrivyScannerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,57 +25,22 @@ import java.util.UUID;
 @CrossOrigin(origins = "*")
 public class ScanController {
 
+    private final TrivyScannerService trivyScannerService;
+
     @PostMapping("/docker")
     public ResponseEntity<ApiResponse<ScanResponse>> scanDockerImage(
             @Valid @RequestBody ScanRequest scanRequest) {
         log.info("Received request to scan Docker image: {}", scanRequest.getImageName());
-
-        // Standardized placeholder response structure ready for TrivyScannerService injection
-        ScanResponse response = ScanResponse.builder()
-                .scanId(UUID.randomUUID().toString())
-                .target(scanRequest.getImageName())
-                .scanType("DOCKER_IMAGE")
-                .status("COMPLETED")
-                .totalVulnerabilities(0)
-                .criticalCount(0)
-                .highCount(0)
-                .mediumCount(0)
-                .lowCount(0)
-                .vulnerabilities(Collections.emptyList())
-                .scannedAt(LocalDateTime.now())
-                .build();
-
-        return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(ApiResponse.success(response, "Docker image scan initiated successfully"));
+        ScanResponse response = trivyScannerService.scanDockerImage(scanRequest.getImageName());
+        return ResponseEntity.ok(ApiResponse.success(response, "Docker image scanned successfully"));
     }
 
     @PostMapping(value = "/k8s", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<ScanResponse>> scanKubernetesManifest(
             @RequestParam("file") MultipartFile file) {
-        if (file.isEmpty()) {
-            throw new IllegalArgumentException("Uploaded Kubernetes YAML manifest file cannot be empty");
-        }
-
-        String originalFilename = file.getOriginalFilename();
-        log.info("Received request to scan Kubernetes manifest: {} (size: {} bytes)",
-                originalFilename, file.getSize());
-
-        ScanResponse response = ScanResponse.builder()
-                .scanId(UUID.randomUUID().toString())
-                .target(originalFilename != null ? originalFilename : "k8s-manifest.yaml")
-                .scanType("K8S_CONFIG")
-                .status("COMPLETED")
-                .totalVulnerabilities(0)
-                .criticalCount(0)
-                .highCount(0)
-                .mediumCount(0)
-                .lowCount(0)
-                .vulnerabilities(Collections.emptyList())
-                .scannedAt(LocalDateTime.now())
-                .build();
-
-        return ResponseEntity.status(HttpStatus.ACCEPTED)
-                .body(ApiResponse.success(response, "Kubernetes manifest scan initiated successfully"));
+        log.info("Received request to scan Kubernetes manifest: {}", file.getOriginalFilename());
+        ScanResponse response = trivyScannerService.scanKubernetesYaml(file);
+        return ResponseEntity.ok(ApiResponse.success(response, "Kubernetes manifest scanned successfully"));
     }
 
     @GetMapping("/{scanId}")
