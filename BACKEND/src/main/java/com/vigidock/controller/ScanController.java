@@ -26,11 +26,6 @@ public class ScanController {
 
     private final TrivyScannerService trivyScannerService;
 
-    /**
-     * Scans a Docker image via Trivy.
-     * Endpoint: POST /api/scan/docker (and /api/v1/scans/docker)
-     * Payload: { "imageName": "nginx:latest" }
-     */
     @PostMapping("/docker")
     public ResponseEntity<ApiResponse<ScanResponse>> scanDockerImage(
             @Valid @RequestBody ScanRequest scanRequest) {
