@@ -45,6 +45,8 @@ function EmptyState({ title, description, action }) {
 }
 
 function App() {
+  const [authenticated, setAuthenticated] = useState(() => Boolean(window.localStorage.getItem('vigidock-session')))
+  const [authMode, setAuthMode] = useState(null)
   const [activePage, setActivePage] = useState('overview')
   const [scanMode, setScanMode] = useState('docker')
   const [scans, setScans] = useState([])
@@ -54,6 +56,8 @@ function App() {
   const [notice, setNotice] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [feedbackText, setFeedbackText] = useState('')
 
   const loadHistory = async () => {
     setRefreshing(true)
@@ -68,7 +72,15 @@ function App() {
     }
   }
 
-  useEffect(() => { loadHistory() }, [])
+  useEffect(() => { if (authenticated) loadHistory() }, [authenticated])
+
+  if (!authenticated) {
+    return <>
+      <LandingPage onGetStarted={() => setAuthMode('signin')} onLearnMore={() => setAuthMode('learn')} onSignIn={() => setAuthMode('signin')} onRegister={() => setAuthMode('register')} />
+      {authMode === 'learn' && <LearnMoreModal onClose={() => setAuthMode(null)} />}
+      {(authMode === 'signin' || authMode === 'register') && <AuthModal mode={authMode} onModeChange={setAuthMode} onClose={() => setAuthMode(null)} onAuthenticated={() => { window.localStorage.setItem('vigidock-session', 'active'); setAuthenticated(true); setAuthMode(null) }} />}
+    </>
+  }
 
   const handleScanComplete = (result) => {
     setSelectedScan(result)
@@ -98,6 +110,8 @@ function App() {
       <div className="sidebar-footer">
         <div className="connection-dot"><span /> API connected</div>
         <p>Protect every image and manifest before it reaches production.</p>
+        <button className="feedback-link" onClick={() => setFeedbackOpen(true)}>Share feedback →</button>
+        <button className="signout-link" onClick={() => { window.localStorage.removeItem('vigidock-session'); setAuthenticated(false) }}>Sign out</button>
       </div>
     </aside>
     {mobileNav && <button className="mobile-overlay" aria-label="Close navigation" onClick={() => setMobileNav(false)} />}
@@ -115,6 +129,45 @@ function App() {
         {activePage === 'history' && <HistoryPage scans={scans} loading={loadingHistory} onRefresh={loadHistory} onSelect={setSelectedScan} onNewScan={() => navigate('scan')} />}
       </div>
     </main>
+    {feedbackOpen && <FeedbackDialog value={feedbackText} onChange={setFeedbackText} onClose={() => setFeedbackOpen(false)} onSubmit={() => { const previous = JSON.parse(window.localStorage.getItem('vigidock-feedback') || '[]'); window.localStorage.setItem('vigidock-feedback', JSON.stringify([...previous, { message: feedbackText.trim(), submittedAt: new Date().toISOString() }])); setFeedbackOpen(false); setFeedbackText(''); setNotice('Thanks — your feedback has been recorded.') }} />}
+  </div>
+}
+
+function LandingPage({ onGetStarted, onLearnMore, onSignIn, onRegister }) {
+  return <div className="landing-page">
+    <header className="landing-nav"><div className="brand"><div className="brand-mark">V</div><div><strong>VigiDock</strong><small>Security console</small></div></div><div className="landing-nav-actions"><button className="link-button" onClick={onSignIn}>Sign in</button><button className="button primary small" onClick={onRegister}>Register</button></div></header>
+    <main className="landing-content"><section className="landing-copy"><div className="landing-kicker"><span /> Secure releases, made simple</div><h1>Ship with confidence.<br /><em>Secure by default.</em></h1><p>VigiDock helps teams find vulnerabilities in container images and Kubernetes manifests before they reach production.</p><div className="landing-actions"><button className="button primary landing-button" onClick={onGetStarted}>Get Started <span>→</span></button><button className="button secondary landing-button" onClick={onLearnMore}>Learn More</button></div><div className="landing-proof"><span>✓ Trivy-powered scanning</span><span>✓ Actionable insights</span><span>✓ Built for developers</span></div></section><section className="landing-visual" aria-label="VigiDock security overview"><div className="visual-glow" /><div className="visual-card main-visual-card"><div className="visual-card-header"><span className="visual-dot" /><span>Security overview</span><b>Today</b></div><div className="visual-score"><div className="score-ring"><strong>92</strong><small>risk score</small></div><div><strong className="safe-text">Healthy baseline</strong><p>Across 12 scanned targets</p></div></div><div className="visual-bars"><span style={{ width: '84%' }}><i>Container images</i><b>84%</b></span><span style={{ width: '68%' }}><i>Kubernetes configs</i><b>68%</b></span><span style={{ width: '93%' }}><i>Policy coverage</i><b>93%</b></span></div></div><div className="visual-card floating-card"><span className="floating-icon">✓</span><div><strong>No critical issues</strong><small>Last scan completed</small></div></div></section></main><footer className="landing-footer"><span>© 2026 VigiDock</span><span>Secure every release.</span></footer>
+  </div>
+}
+
+function LearnMoreModal({ onClose }) {
+  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="info-modal" role="dialog" aria-modal="true"><button className="close-button" onClick={onClose} aria-label="Close">×</button><div className="modal-icon">✦</div><p className="eyebrow">ABOUT VIGIDOCK</p><h2>Security clarity for every release.</h2><p>VigiDock brings container and Kubernetes security checks into one focused workspace. Scan an image, upload a manifest, review findings, and get practical remediation guidance.</p><div className="modal-features"><div><strong>01</strong><span>Find vulnerabilities early</span></div><div><strong>02</strong><span>Understand the risk quickly</span></div><div><strong>03</strong><span>Fix issues with confidence</span></div></div></section></div>
+}
+
+function AuthModal({ mode, onModeChange, onClose, onAuthenticated }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
+  const [error, setError] = useState('')
+  const register = mode === 'register'
+  const submit = (event) => {
+    event.preventDefault(); setError('')
+    if (!email.includes('@') || password.length < 6 || (register && !name.trim())) { setError(register ? 'Enter your name, a valid email, and a password with at least 6 characters.' : 'Enter a valid email and a password with at least 6 characters.'); return }
+    if (register) { const users = JSON.parse(window.localStorage.getItem('vigidock-users') || '[]'); window.localStorage.setItem('vigidock-users', JSON.stringify([...users.filter((user) => user.email !== email), { name, email, password }])); }
+    onAuthenticated()
+  }
+  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="auth-modal" role="dialog" aria-modal="true"><button className="close-button" onClick={onClose} aria-label="Close">×</button><div className="auth-heading"><div className="brand-mark">V</div><p className="eyebrow">WELCOME TO VIGIDOCK</p><h2>{register ? 'Create your account' : 'Welcome back'}</h2><p>{register ? 'Start securing your releases in minutes.' : 'Sign in to open your security workspace.'}</p></div><form onSubmit={submit}>{register && <label>Full name<input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" /></label>}<label>Email address<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" /></label><label>Password<input required type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 6 characters" /></label>{error && <div className="auth-error">{error}</div>}<button className="button primary full-width" type="submit">{register ? 'Create account' : 'Sign in'} <span>→</span></button></form><p className="auth-switch">{register ? 'Already have an account?' : 'New to VigiDock?'} <button onClick={() => { setError(''); onModeChange(register ? 'signin' : 'register') }}>{register ? 'Sign in' : 'Register'}</button></p><small className="auth-note">Demo access is stored locally in this browser.</small></section></div>
+}
+
+function FeedbackDialog({ value, onChange, onClose, onSubmit }) {
+  return <div className="feedback-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+    <form className="feedback-card" onSubmit={(event) => { event.preventDefault(); if (value.trim()) onSubmit() }}>
+      <div className="panel-heading" style={{ padding: 0 }}><div><p className="eyebrow">USER FEEDBACK</p><h2>Help us improve VigiDock</h2></div><button type="button" className="close-button" onClick={onClose} aria-label="Close feedback">×</button></div>
+      <p>Tell us what felt clear, confusing, or missing. Your feedback helps us make security workflows easier for everyone.</p>
+      <label htmlFor="feedback">Your feedback</label>
+      <textarea id="feedback" required value={value} onChange={(event) => onChange(event.target.value)} placeholder="What could make this experience better?" autoFocus />
+      <div className="feedback-actions"><button type="button" className="button secondary" onClick={onClose}>Cancel</button><button type="submit" className="button primary">Send feedback</button></div>
+    </form>
   </div>
 }
 
