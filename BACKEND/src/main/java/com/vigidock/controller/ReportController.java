@@ -24,7 +24,6 @@ import java.util.Collections;
 @RestController
 @RequestMapping({"/api/reports", "/api/v1/reports"})
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class ReportController {
 
     private final ScanRecordRepository scanRecordRepository;

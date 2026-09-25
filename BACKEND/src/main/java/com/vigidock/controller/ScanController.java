@@ -21,7 +21,6 @@ import java.util.List;
 @RestController
 @RequestMapping({"/api/scan", "/api/v1/scans"})
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class ScanController {
 
     private final TrivyScannerService trivyScannerService;
