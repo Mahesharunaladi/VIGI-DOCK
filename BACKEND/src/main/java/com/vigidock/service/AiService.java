@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ public class AiService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    @Value("${vigidock.ai.gemini.api-key:${gemini.api.key:}}")
+    @Value("${gemini.api.key:${vigidock.ai.gemini.api-key:}}")
     private String geminiApiKey;
 
     @Value("${vigidock.ai.gemini.model:gemini-1.5-flash}")
@@ -82,6 +83,9 @@ public class AiService {
         try {
             String rawJsonResponse = callGeminiApi(prompt);
             return parseAiExplanationResponse(rawJsonResponse, request.getVulnerabilityId());
+        } catch (HttpStatusCodeException e) {
+            log.error("Gemini API HTTP failure ({}): {}. Falling back.", e.getStatusCode(), e.getResponseBodyAsString());
+            return buildFallbackVulnerabilityExplanation(request);
         } catch (Exception e) {
             log.error("Failed to generate AI explanation via Gemini API: {}. Falling back to default response.", e.getMessage());
             return buildFallbackVulnerabilityExplanation(request);
@@ -112,6 +116,9 @@ public class AiService {
         try {
             String rawJsonResponse = callGeminiApi(prompt);
             return parseAiExplanationResponse(rawJsonResponse, misconfigRule);
+        } catch (HttpStatusCodeException e) {
+            log.error("Gemini API HTTP failure for K8s explanation ({}): {}. Falling back.", e.getStatusCode(), e.getResponseBodyAsString());
+            return buildFallbackK8sRemediation(misconfigRule, yamlContent);
         } catch (Exception e) {
             log.error("Failed to generate K8s AI remediation via Gemini API: {}. Falling back to default response.", e.getMessage());
             return buildFallbackK8sRemediation(misconfigRule, yamlContent);
@@ -178,6 +185,9 @@ public class AiService {
 
             You MUST respond ONLY with a valid JSON object strictly matching this schema:
             {
+              "summary": "<Beginner-friendly, plain-English explanation of the vulnerability>",
+              "impact": "<Security implications at container runtime>",
+              "remediation": "<Step-by-step code or Dockerfile fixes>",
               "vulnerabilityId": "%s",
               "plainEnglishSummary": "<Beginner-friendly explanation of what this vulnerability means in simple terms>",
               "impactAnalysis": "<How this affects container runtime security, confidentiality, integrity, or availability>",
@@ -213,6 +223,9 @@ public class AiService {
 
             You MUST respond ONLY with a valid JSON object strictly matching this schema:
             {
+              "summary": "<Beginner-friendly explanation of why this Kubernetes setting is dangerous>",
+              "impact": "<Security implications if the workload is deployed as-is>",
+              "remediation": "<Corrected YAML snippet and the reason each control is required>",
               "vulnerabilityId": "%s",
               "plainEnglishSummary": "<Beginner-friendly explanation of why this configuration violates security best practices>",
               "impactAnalysis": "<Risk to the pod, node, or cluster if exploited (e.g., container breakout, unauthorized API access)>",
@@ -253,12 +266,19 @@ public class AiService {
                 cmdNode.forEach(c -> commands.add(c.asText()));
             }
 
+            String summary = firstText(node, "summary", "plainEnglishSummary");
+            String impact = firstText(node, "impact", "impactAnalysis");
+            String remediation = firstText(node, "remediation", "recommendedFix");
+
             return AiExplanationResponse.builder()
                     .vulnerabilityId(node.path("vulnerabilityId").asText(defaultId))
-                    .plainEnglishSummary(node.path("plainEnglishSummary").asText(node.path("summary").asText()))
-                    .impactAnalysis(node.path("impactAnalysis").asText(node.path("impact").asText()))
+                    .summary(summary)
+                    .impact(impact)
+                    .remediation(remediation)
+                    .plainEnglishSummary(summary)
+                    .impactAnalysis(impact)
                     .attackVector(node.path("attackVector").asText("Network / Container Runtime"))
-                    .recommendedFix(node.path("recommendedFix").asText(node.path("remediation").asText()))
+                    .recommendedFix(remediation)
                     .remediationCommands(commands)
                     .patchedManifestSnippet(node.path("patchedManifestSnippet").asText(null))
                     .build();
@@ -269,18 +289,32 @@ public class AiService {
         }
     }
 
+    private String firstText(JsonNode node, String primary, String fallback) {
+        String value = node.path(primary).asText(null);
+        if (StringUtils.hasText(value)) {
+            return value;
+        }
+        return node.path(fallback).asText(null);
+    }
+
     private AiExplanationResponse buildFallbackVulnerabilityExplanation(AiExplanationRequest req) {
         String pkg = StringUtils.hasText(req.getPackageName()) ? req.getPackageName() : "affected package";
         String fixed = StringUtils.hasText(req.getFixedVersion()) ? req.getFixedVersion() : "the latest safe version";
+        String summary = String.format(
+                "The package '%s' contains a security flaw (%s) allowing potential unauthorized access or instability in the container.",
+                pkg, req.getVulnerabilityId());
+        String impact = "Unpatched dependencies in container images increase the attack surface and can lead to container compromise at runtime.";
+        String remediation = String.format("Upgrade '%s' to version %s or rebuild using an updated minimal base image (e.g. alpine:latest, distroless).", pkg, fixed);
 
         return AiExplanationResponse.builder()
                 .vulnerabilityId(req.getVulnerabilityId())
-                .plainEnglishSummary(String.format(
-                        "The package '%s' contains a security flaw (%s) allowing potential unauthorized access or instability in the container.",
-                        pkg, req.getVulnerabilityId()))
-                .impactAnalysis("Unpatched dependencies in container images increase the attack surface and can lead to container compromise.")
+                .summary(summary)
+                .impact(impact)
+                .remediation(remediation)
+                .plainEnglishSummary(summary)
+                .impactAnalysis(impact)
                 .attackVector("Exploitation of unpatched software library functions via standard container interfaces.")
-                .recommendedFix(String.format("Upgrade '%s' to version %s or rebuild using an updated minimal base image (e.g. alpine:latest, distroless).", pkg, fixed))
+                .recommendedFix(remediation)
                 .remediationCommands(List.of(
                         String.format("# Upgrade %s in Dockerfile\nRUN apt-get update && apt-get install -y --only-upgrade %s", pkg, pkg),
                         "docker build --no-cache -t vigidock/app:secure ."
@@ -289,12 +323,19 @@ public class AiService {
     }
 
     private AiExplanationResponse buildFallbackK8sRemediation(String rule, String yaml) {
+        String summary = "The Kubernetes configuration lacks essential container hardening controls, allowing the pod to run with excessive privileges.";
+        String impact = "In case of container compromise, lack of securityContext allows host filesystem tampering or privilege escalation.";
+        String remediation = "Add a strict securityContext block with readOnlyRootFilesystem: true, runAsNonRoot: true, and drop all Linux capabilities.";
+
         return AiExplanationResponse.builder()
                 .vulnerabilityId(rule)
-                .plainEnglishSummary("The Kubernetes configuration lacks essential container hardening controls, allowing the pod to run with excessive privileges.")
-                .impactAnalysis("In case of container compromise, lack of securityContext allows host filesystem tampering or privilege escalation.")
+                .summary(summary)
+                .impact(impact)
+                .remediation(remediation)
+                .plainEnglishSummary(summary)
+                .impactAnalysis(impact)
                 .attackVector("Container breakout and root execution on node filesystem.")
-                .recommendedFix("Add a strict securityContext block with readOnlyRootFilesystem: true, runAsNonRoot: true, and drop all Linux capabilities.")
+                .recommendedFix(remediation)
                 .remediationCommands(List.of(
                         "kubectl apply -f hardened-manifest.yaml",
                         "kubectl get pods -n default"

@@ -109,7 +109,7 @@ public class GlobalExceptionHandler {
         ErrorResponse response = ErrorResponse.builder()
                 .status(HttpStatus.PAYLOAD_TOO_LARGE.value())
                 .error(HttpStatus.PAYLOAD_TOO_LARGE.getReasonPhrase())
-                .message("Uploaded file exceeds the maximum allowed upload limit (Max 25MB)")
+                .message("Uploaded file exceeds the maximum allowed upload limit (Max 10MB)")
                 .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();
@@ -157,6 +157,22 @@ public class GlobalExceptionHandler {
         ErrorResponse response = ErrorResponse.builder()
                 .status(HttpStatus.UNPROCESSABLE_ENTITY.value())
                 .error("Scan Execution Failure")
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
+    }
+
+    @ExceptionHandler(VigiDockException.class)
+    public ResponseEntity<ErrorResponse> handleVigiDockException(
+            VigiDockException ex, HttpServletRequest request) {
+        log.error("Application error on path {}: {}", request.getRequestURI(), ex.getMessage(), ex);
+
+        ErrorResponse response = ErrorResponse.builder()
+                .status(HttpStatus.UNPROCESSABLE_ENTITY.value())
+                .error("VigiDock Processing Error")
                 .message(ex.getMessage())
                 .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())

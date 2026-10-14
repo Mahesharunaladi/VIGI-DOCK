@@ -13,7 +13,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.file.Files;
@@ -32,7 +31,7 @@ public class TrivyScannerService {
 
     private final ObjectMapper objectMapper;
 
-    @Value("${vigidock.scanner.trivy-path:trivy}")
+    @Value("${trivy.binary.path:${vigidock.scanner.trivy-path:trivy}}")
     private String trivyPath;
 
     @Value("${vigidock.scanner.timeout-seconds:300}")
@@ -59,7 +58,6 @@ public class TrivyScannerService {
                 trivyPath,
                 "image",
                 "--format", "json",
-                "--quiet",
                 imageName
         );
 
@@ -103,7 +101,6 @@ public class TrivyScannerService {
                     trivyPath,
                     "config",
                     "--format", "json",
-                    "--quiet",
                     tempFilePath.toAbsolutePath().toString()
             );
 
@@ -219,6 +216,7 @@ public class TrivyScannerService {
                                     .description(vNode.path("Description").asText())
                                     .primaryUrl(vNode.path("PrimaryURL").asText())
                                     .cweIds(cweList)
+                                    .cvssScore(extractCvssScore(vNode, severity))
                                     .build());
                         }
                     }
@@ -285,6 +283,40 @@ public class TrivyScannerService {
         }
     }
 
+    private Double extractCvssScore(JsonNode vulnerabilityNode, String severity) {
+        JsonNode cvssNode = vulnerabilityNode.path("CVSS");
+        if (cvssNode.isObject()) {
+            Double preferred = null;
+            var fields = cvssNode.fields();
+            while (fields.hasNext()) {
+                JsonNode vendorScore = fields.next().getValue();
+                if (vendorScore.hasNonNull("V3Score")) {
+                    double score = vendorScore.path("V3Score").asDouble();
+                    preferred = preferred == null ? score : Math.max(preferred, score);
+                } else if (vendorScore.hasNonNull("V2Score") && preferred == null) {
+                    preferred = vendorScore.path("V2Score").asDouble();
+                }
+            }
+            if (preferred != null) {
+                return preferred;
+            }
+        }
+        return fallbackCvssFromSeverity(severity);
+    }
+
+    private Double fallbackCvssFromSeverity(String severity) {
+        if (severity == null) {
+            return null;
+        }
+        return switch (severity.toUpperCase()) {
+            case "CRITICAL" -> 9.8;
+            case "HIGH" -> 7.5;
+            case "MEDIUM" -> 5.5;
+            case "LOW" -> 2.0;
+            default -> null;
+        };
+    }
+
     private String calculateRiskScore(int critical, int high, int medium, int low) {
         int score = (critical * 10) + (high * 5) + (medium * 2) + low;
         if (critical > 0 || score >= 25) {
@@ -338,9 +370,9 @@ public class TrivyScannerService {
     }
 
     private Path resolveUploadDirectory() {
-        Path path = Paths.get("src/main/resources/uploads");
-        if (Files.exists(path)) {
-            return path;
+        Path preferred = Paths.get("src/main/resources/uploads");
+        if (Files.exists(preferred) || "src/main/resources/uploads".equals(uploadDirConfig)) {
+            return preferred;
         }
         return Paths.get(uploadDirConfig);
     }

@@ -3,10 +3,8 @@ package com.vigidock.controller;
 import com.vigidock.dto.ApiResponse;
 import com.vigidock.dto.ScanResponse;
 import com.vigidock.entity.ScanRecord;
-import com.vigidock.exception.ResourceNotFoundException;
-import com.vigidock.repository.ScanRecordRepository;
 import com.vigidock.service.PdfReportService;
-import jakarta.transaction.Transactional;
+import com.vigidock.service.ScanService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
@@ -15,10 +13,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-
-import java.time.LocalDateTime;
-import java.util.Collections;
 
 @Slf4j
 @RestController
@@ -26,16 +22,15 @@ import java.util.Collections;
 @RequiredArgsConstructor
 public class ReportController {
 
-    private final ScanRecordRepository scanRecordRepository;
+    private final ScanService scanService;
     private final PdfReportService pdfReportService;
 
-    @GetMapping(value = "/{scanId}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
-    @Transactional
+    @GetMapping(value = {"/download/{scanId}", "/{scanId}/pdf"}, produces = MediaType.APPLICATION_PDF_VALUE)
+    @Transactional(readOnly = true)
     public ResponseEntity<Resource> downloadPdfReport(@PathVariable("scanId") String scanId) {
         log.info("Generating and streaming PDF report for scan ID: {}", scanId);
 
-        ScanRecord scanRecord = scanRecordRepository.findById(scanId)
-                .orElseThrow(() -> new ResourceNotFoundException("Scan not found: " + scanId));
+        ScanRecord scanRecord = scanService.findRecord(scanId);
         byte[] pdfBytes = pdfReportService.generateReport(scanRecord);
 
         HttpHeaders headers = new HttpHeaders();
@@ -52,16 +47,7 @@ public class ReportController {
     public ResponseEntity<ApiResponse<ScanResponse>> downloadJsonReport(@PathVariable("scanId") String scanId) {
         log.info("Generating JSON report export for scan ID: {}", scanId);
 
-        ScanResponse response = ScanResponse.builder()
-                .scanId(scanId)
-                .target("export-target")
-                .scanType("DOCKER_IMAGE")
-                .status("COMPLETED")
-                .totalVulnerabilities(0)
-                .vulnerabilities(Collections.emptyList())
-                .scannedAt(LocalDateTime.now())
-                .build();
-
+        ScanResponse response = scanService.getScan(scanId);
         return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK, response, "JSON report exported successfully"));
     }
 }

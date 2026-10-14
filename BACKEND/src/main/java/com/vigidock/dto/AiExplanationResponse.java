@@ -14,6 +14,9 @@ import java.util.List;
 public class AiExplanationResponse {
 
     private String vulnerabilityId;
+    private String summary;
+    private String impact;
+    private String remediation;
     private String plainEnglishSummary;
     private String impactAnalysis;
     private String attackVector;

@@ -55,8 +55,11 @@ public class PdfReportService {
                  Document document = new Document(pdfDocument)) {
                 document.setMargins(36, 36, 36, 36);
                 addHeader(document, scanRecord, boldFont);
+                addTargetDetails(document, scanRecord, regularFont, boldFont);
                 addExecutiveSummary(document, scanRecord, regularFont, boldFont);
+                addActiveThreats(document, scanRecord, regularFont, boldFont);
                 addDetailedFindings(document, scanRecord, regularFont, boldFont);
+                addAiRemediationSteps(document, scanRecord, regularFont, boldFont);
             }
 
             return outputStream.toByteArray();
@@ -81,9 +84,23 @@ public class PdfReportService {
                 .setMarginBottom(18));
     }
 
+    private void addTargetDetails(Document document, ScanRecord scanRecord,
+                                  PdfFont regularFont, PdfFont boldFont) {
+        addSectionHeading(document, "Target Details", boldFont);
+        Table details = new Table(UnitValue.createPercentArray(new float[]{1, 2}))
+                .useAllAvailableWidth()
+                .setMarginBottom(16);
+        addKeyValue(details, "Scan ID", valueOrFallback(scanRecord.getScanId(), "N/A"), regularFont, boldFont);
+        addKeyValue(details, "Target", valueOrFallback(scanRecord.getTarget(), "N/A"), regularFont, boldFont);
+        addKeyValue(details, "Scan Type", valueOrFallback(scanRecord.getScanType(), "N/A"), regularFont, boldFont);
+        addKeyValue(details, "Status", valueOrFallback(scanRecord.getStatus(), "N/A"), regularFont, boldFont);
+        addKeyValue(details, "Overall Risk", valueOrFallback(scanRecord.getOverallRiskScore(), "N/A"), regularFont, boldFont);
+        document.add(details);
+    }
+
     private void addExecutiveSummary(Document document, ScanRecord scanRecord,
                                      PdfFont regularFont, PdfFont boldFont) {
-        addSectionHeading(document, "Executive Summary", boldFont);
+        addSectionHeading(document, "Severity Counts", boldFont);
 
         Table summaryTable = new Table(UnitValue.createPercentArray(new float[]{2.5f, 1.5f, 1, 1, 1, 1}))
                 .useAllAvailableWidth()
@@ -163,6 +180,100 @@ public class PdfReportService {
             findingTable.addCell(detailCell);
             document.add(findingTable);
         }
+    }
+
+    private void addActiveThreats(Document document, ScanRecord scanRecord,
+                                  PdfFont regularFont, PdfFont boldFont) {
+        addSectionHeading(document, "Top EPSS Active Threats", boldFont);
+        List<VulnerabilityDetail> threats = scanRecord.getVulnerabilities() == null
+                ? Collections.emptyList()
+                : scanRecord.getVulnerabilities().stream()
+                .filter(finding -> "ACTIVE_THREAT".equalsIgnoreCase(finding.getThreatTag()))
+                .sorted((left, right) -> Double.compare(
+                        right.getEpssScore() == null ? 0.0 : right.getEpssScore(),
+                        left.getEpssScore() == null ? 0.0 : left.getEpssScore()))
+                .limit(10)
+                .toList();
+
+        if (threats.isEmpty()) {
+            document.add(new Paragraph("No findings currently meet the ACTIVE_THREAT threshold (CVSS >= 7.0 and EPSS > 0.50).")
+                    .setFont(regularFont)
+                    .setFontSize(10)
+                    .setMarginBottom(12));
+            return;
+        }
+
+        Table table = new Table(UnitValue.createPercentArray(new float[]{2, 1.2f, 1, 1, 2}))
+                .useAllAvailableWidth()
+                .setMarginBottom(16);
+        addSummaryCell(table, "CVE", boldFont, LIGHT_BLUE);
+        addSummaryCell(table, "Package", boldFont, LIGHT_BLUE);
+        addSummaryCell(table, "CVSS", boldFont, LIGHT_BLUE);
+        addSummaryCell(table, "EPSS", boldFont, LIGHT_BLUE);
+        addSummaryCell(table, "Tag", boldFont, LIGHT_BLUE);
+        for (VulnerabilityDetail threat : threats) {
+            addSummaryCell(table, valueOrFallback(threat.getVulnerabilityId(), "N/A"), regularFont, ColorConstants.WHITE);
+            addSummaryCell(table, valueOrFallback(threat.getPackageName(), "N/A"), regularFont, ColorConstants.WHITE);
+            addSummaryCell(table, formatScore(threat.getCvssScore()), regularFont, ColorConstants.WHITE);
+            addSummaryCell(table, formatScore(threat.getEpssScore()), regularFont, ColorConstants.WHITE);
+            addSummaryCell(table, valueOrFallback(threat.getThreatTag(), "MONITORED"), regularFont, ColorConstants.WHITE);
+        }
+        document.add(table);
+    }
+
+    private void addAiRemediationSteps(Document document, ScanRecord scanRecord,
+                                       PdfFont regularFont, PdfFont boldFont) {
+        addSectionHeading(document, "AI Remediation Steps", boldFont);
+        List<VulnerabilityDetail> findings = scanRecord.getVulnerabilities() == null
+                ? Collections.emptyList() : scanRecord.getVulnerabilities();
+        if (findings.isEmpty()) {
+            document.add(new Paragraph("No remediation steps were generated for this scan.")
+                    .setFont(regularFont)
+                    .setFontSize(10));
+            return;
+        }
+
+        int shown = 0;
+        for (VulnerabilityDetail finding : findings) {
+            String remediation = firstNonBlank(finding.getAiRemediation(),
+                    hasText(finding.getFixedVersion()) ? "Upgrade to " + finding.getFixedVersion() : null,
+                    null);
+            if (!hasText(remediation)) {
+                continue;
+            }
+            document.add(new Paragraph(valueOrFallback(finding.getVulnerabilityId(), "Finding"))
+                    .setFont(boldFont)
+                    .setFontSize(11)
+                    .setFontColor(BRAND_BLUE)
+                    .setMarginBottom(2));
+            document.add(new Paragraph(remediation)
+                    .setFont(regularFont)
+                    .setFontSize(10)
+                    .setMarginBottom(10));
+            shown++;
+            if (shown == 8) {
+                break;
+            }
+        }
+        if (shown == 0) {
+            document.add(new Paragraph("Request AI explanations for individual CVEs to populate remediation guidance.")
+                    .setFont(regularFont)
+                    .setFontSize(10));
+        }
+    }
+
+    private void addKeyValue(Table table, String key, String value, PdfFont regularFont, PdfFont boldFont) {
+        table.addCell(new Cell()
+                .add(new Paragraph(key).setFont(boldFont).setFontSize(9))
+                .setBackgroundColor(LIGHT_BLUE)
+                .setPadding(6));
+        table.addCell(new Cell()
+                .add(new Paragraph(value).setFont(regularFont).setFontSize(9))
+                .setPadding(6));
+    }
+
+    private String formatScore(Double score) {
+        return score == null ? "N/A" : String.format("%.3f", score);
     }
 
     private void addSectionHeading(Document document, String heading, PdfFont boldFont) {
