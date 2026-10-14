@@ -40,6 +40,9 @@ public class TrivyScannerService {
     @Value("${vigidock.scanner.upload-dir:uploads}")
     private String uploadDirConfig;
 
+    // Trivy uses a shared local cache and permits only one process to access it at a time.
+    private final Semaphore trivyProcessLock = new Semaphore(1, true);
+
     // Pattern to ensure Docker image name does not contain illegal control characters
     private static final Pattern SAFE_IMAGE_NAME_PATTERN =
             Pattern.compile("^[a-zA-Z0-9_.:/@-]+$");
@@ -130,7 +133,13 @@ public class TrivyScannerService {
         processBuilder.environment().put("TRIVY_NO_PROGRESS", "true");
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
+        boolean lockAcquired = false;
         try {
+            lockAcquired = trivyProcessLock.tryAcquire(timeoutSeconds, TimeUnit.SECONDS);
+            if (!lockAcquired) {
+                throw new ScanException("Another Trivy scan is still using the shared cache. Please retry shortly.");
+            }
+
             Process process = processBuilder.start();
 
             Future<String> stdoutFuture = executor.submit(() -> readStream(process.getInputStream()));
@@ -163,6 +172,9 @@ public class TrivyScannerService {
             throw new ScanException("Error reading Trivy process output: " + e.getMessage(), e);
         } finally {
             executor.shutdownNow();
+            if (lockAcquired) {
+                trivyProcessLock.release();
+            }
         }
     }
 
