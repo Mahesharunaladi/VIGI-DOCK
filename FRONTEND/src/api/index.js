@@ -24,6 +24,7 @@ export const dashboardApi = {
     },
   }),
   explainKubernetes: async (payload) => apiRequest({ method: 'POST', url: '/ai/explain-k8s', data: payload }),
+  generatePatch: async (payload) => apiRequest({ method: 'POST', url: '/fix/generate-patch', data: payload }),
   reportJson: async (scanId) => apiRequest({ url: `/reports/${encodeURIComponent(scanId)}/json` }),
   downloadReport,
 }
