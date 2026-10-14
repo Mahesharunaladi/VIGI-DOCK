@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequestMapping({"/api/reports", "/api/v1/reports"})
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"}, allowCredentials = "true")
 @RequiredArgsConstructor
 public class ReportController {
 
