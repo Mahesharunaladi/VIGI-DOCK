@@ -10,3 +10,6 @@ insert into vulnerability_details (ai_explanation,ai_remediation,created_at,cvss
 2026-11-16 11:13:38.456810+05:30 jdbc[3]: exception
 org.h2.jdbc.JdbcSQLDataException: Value too long for column "FIXED_VERSION CHARACTER VARYING(255)": "'To enhance security, it is strongly recommended not to rely on the default secu... (267)"; SQL statement:
 insert into vulnerability_details (ai_explanation,ai_remediation,created_at,cvss_score,description,epss_percentile,epss_score,fixed_version,installed_version,package_name,primary_url,scan_record_id,severity,threat_tag,title,vulnerability_id,id) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,default) [22001-224]
+2026-11-16 11:16:33.245319+05:30 jdbc[3]: exception
+org.h2.jdbc.JdbcSQLDataException: Value too long for column "FIXED_VERSION CHARACTER VARYING(255)": "'To enhance security, it is strongly recommended not to rely on the default secu... (267)"; SQL statement:
+insert into vulnerability_details (ai_explanation,ai_remediation,created_at,cvss_score,description,epss_percentile,epss_score,fixed_version,installed_version,package_name,primary_url,scan_record_id,severity,threat_tag,title,vulnerability_id,id) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,default) [22001-224]

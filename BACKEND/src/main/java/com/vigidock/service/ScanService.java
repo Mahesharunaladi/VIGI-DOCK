@@ -58,10 +58,15 @@ public class ScanService {
                 .orElseThrow(() -> new ResourceNotFoundException("Scan not found: " + scanId));
     }
 
+    private String truncate(String text, int maxLength) {
+        if (text == null) return null;
+        return text.length() <= maxLength ? text : text.substring(0, maxLength);
+    }
+
     private void persist(ScanResponse response) {
         ScanRecord record = ScanRecord.builder()
                 .scanId(response.getScanId())
-                .target(response.getTarget())
+                .target(truncate(response.getTarget(), 255))
                 .scanType(response.getScanType())
                 .status(response.getStatus())
                 .totalVulnerabilities(response.getTotalVulnerabilities())
@@ -78,18 +83,18 @@ public class ScanService {
         if (response.getVulnerabilities() != null) {
             for (VulnerabilityDto dto : response.getVulnerabilities()) {
                 VulnerabilityDetail detail = VulnerabilityDetail.builder()
-                        .vulnerabilityId(dto.getVulnerabilityId())
-                        .packageName(dto.getPkgName())
-                        .installedVersion(dto.getInstalledVersion())
-                        .fixedVersion(dto.getFixedVersion())
-                        .severity(dto.getSeverity())
+                        .vulnerabilityId(truncate(dto.getVulnerabilityId(), 100))
+                        .packageName(truncate(dto.getPkgName(), 255))
+                        .installedVersion(truncate(dto.getInstalledVersion(), 255))
+                        .fixedVersion(truncate(dto.getFixedVersion(), 255))
+                        .severity(truncate(dto.getSeverity(), 50))
                         .title(dto.getTitle())
                         .description(dto.getDescription())
-                        .primaryUrl(dto.getPrimaryUrl())
+                        .primaryUrl(truncate(dto.getPrimaryUrl(), 500))
                         .cvssScore(dto.getCvssScore())
                         .epssScore(dto.getEpssScore())
                         .epssPercentile(dto.getEpssPercentile())
-                        .threatTag(dto.getThreatTag())
+                        .threatTag(truncate(dto.getThreatTag(), 50))
                         .aiExplanation(dto.getAiExplanation())
                         .aiRemediation(dto.getAiRemediation())
                         .scanRecord(record)
