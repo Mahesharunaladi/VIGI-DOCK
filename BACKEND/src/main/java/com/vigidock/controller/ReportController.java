@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @Slf4j
 @RestController
 @RequestMapping({"/api/reports", "/api/v1/reports"})
-@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173"}, allowCredentials = "true")
+@CrossOrigin(origins = {"http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000", "http://127.0.0.1:5173"}, exposedHeaders = {"Content-Disposition", "Content-Length", "Content-Type"}, allowCredentials = "true")
 @RequiredArgsConstructor
 public class ReportController {
 
