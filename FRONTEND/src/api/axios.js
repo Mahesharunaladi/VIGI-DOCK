@@ -25,7 +25,10 @@ export async function apiRequest(config) {
 }
 
 export async function downloadReport(scanId) {
-  const response = await apiClient.get(`/reports/download/${encodeURIComponent(scanId)}`, { responseType: 'blob' })
+  const response = await apiClient.get(`/reports/download/${encodeURIComponent(scanId)}`, {
+    headers: { Accept: 'application/pdf, application/octet-stream, */*' },
+    responseType: 'blob',
+  })
   return response.data
 }
 

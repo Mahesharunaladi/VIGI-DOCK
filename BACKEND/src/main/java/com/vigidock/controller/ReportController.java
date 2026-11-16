@@ -26,7 +26,7 @@ public class ReportController {
     private final ScanService scanService;
     private final PdfReportService pdfReportService;
 
-    @GetMapping(value = {"/download/{scanId}", "/{scanId}/pdf"}, produces = MediaType.APPLICATION_PDF_VALUE)
+    @GetMapping(value = {"/download/{scanId}", "/{scanId}/pdf"}, produces = {MediaType.APPLICATION_PDF_VALUE, MediaType.APPLICATION_OCTET_STREAM_VALUE, MediaType.ALL_VALUE})
     @Transactional(readOnly = true)
     public ResponseEntity<Resource> downloadPdfReport(@PathVariable("scanId") String scanId) {
         log.info("Generating and streaming PDF report for scan ID: {}", scanId);
