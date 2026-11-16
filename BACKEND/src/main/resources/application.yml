@@ -27,7 +27,7 @@ spring:
       max-request-size: 10MB
       file-size-threshold: 2KB
 
-# Custom properties expected by the platform services
+
 gemini:
   api:
     key: ${GEMINI_API_KEY:}
