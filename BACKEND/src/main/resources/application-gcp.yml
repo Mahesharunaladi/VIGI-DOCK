@@ -1,0 +1,31 @@
+spring:
+  config:
+    import: sm://
+  datasource:
+    driver-class-name: org.postgresql.Driver
+  cloud:
+    gcp:
+      sql:
+        instance-connection-name: ${CLOUD_SQL_CONNECTION_NAME:}
+        database-name: ${CLOUD_SQL_DATABASE:vigidock}
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: ${HIBERNATE_DDL_AUTO:update}
+
+gemini:
+  api:
+    key: ${sm://gemini-api-key}
+
+vigidock:
+  gcp:
+    project-id: ${GCP_PROJECT_ID:}
+    region: ${GCP_REGION:asia-south1}
+    gke-cluster-name: ${GKE_CLUSTER_NAME:vigidock-cluster}
+    gke-zone: ${GKE_ZONE:asia-south1-a}
+    gcs-report-bucket: ${GCS_REPORT_BUCKET:}
+  ansible:
+    enabled: true
+    binary-path: ansible-playbook
+    playbook-dir: /app/ansible/playbooks
+    timeout-seconds: 120

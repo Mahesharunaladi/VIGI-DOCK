@@ -61,6 +61,16 @@ logging:
     org.springframework.web: INFO
     org.hibernate.SQL: WARN
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 ---
 spring:
   config:

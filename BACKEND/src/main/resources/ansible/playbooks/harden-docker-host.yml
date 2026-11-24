@@ -1,0 +1,20 @@
+---
+- name: CIS Docker host benchmark checks (read-only)
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - name: Check Docker daemon availability
+      ansible.builtin.command: docker info --format '{{json .SecurityOptions}}'
+      register: docker_security_options
+      changed_when: false
+      failed_when: false
+    - name: Check Docker daemon configuration file
+      ansible.builtin.stat:
+        path: /etc/docker/daemon.json
+      register: docker_daemon_config
+    - name: Report baseline checks
+      ansible.builtin.debug:
+        msg:
+          - "Docker security options: {{ docker_security_options.stdout | default('Docker unavailable') }}"
+          - "daemon.json exists: {{ docker_daemon_config.stat.exists }}"

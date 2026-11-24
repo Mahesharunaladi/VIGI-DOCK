@@ -165,6 +165,15 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);
     }
 
+    @ExceptionHandler(AnsibleExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleAnsible(AnsibleExecutionException ex, HttpServletRequest request) {
+        log.error("Ansible remediation failed: {}", ex.getMessage(), ex);
+        ErrorResponse response = ErrorResponse.builder().status(HttpStatus.BAD_GATEWAY.value())
+                .error("Remediation Execution Failure").message(ex.getMessage()).path(request.getRequestURI())
+                .timestamp(LocalDateTime.now()).build();
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(response);
+    }
+
     @ExceptionHandler(VigiDockException.class)
     public ResponseEntity<ErrorResponse> handleVigiDockException(
             VigiDockException ex, HttpServletRequest request) {

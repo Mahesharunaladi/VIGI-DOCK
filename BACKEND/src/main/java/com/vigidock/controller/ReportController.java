@@ -5,6 +5,8 @@ import com.vigidock.dto.ScanResponse;
 import com.vigidock.entity.ScanRecord;
 import com.vigidock.service.PdfReportService;
 import com.vigidock.service.ScanService;
+import com.vigidock.service.GcsReportStorageService;
+import org.springframework.beans.factory.ObjectProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ByteArrayResource;
@@ -25,6 +27,25 @@ public class ReportController {
 
     private final ScanService scanService;
     private final PdfReportService pdfReportService;
+    private final ObjectProvider<GcsReportStorageService> gcsStorage;
+
+    @GetMapping(value = "/cloud-url/{scanId}", produces = MediaType.APPLICATION_JSON_VALUE)
+    @Transactional(readOnly = true)
+    public ResponseEntity<ApiResponse<java.util.Map<String, String>>> cloudUrl(@PathVariable String scanId) {
+        ScanRecord record = scanService.findRecord(scanId);
+        byte[] bytes = pdfReportService.generateReport(record);
+        GcsReportStorageService storage = gcsStorage.getIfAvailable();
+        if (storage == null) {
+            return ResponseEntity.ok(ApiResponse.success(java.util.Map.of("downloadUrl", "/api/reports/download/" + scanId), "Cloud storage is not configured; use direct PDF download"));
+        }
+        try {
+            String url = storage.uploadAndSign(scanId, bytes).toString();
+            return ResponseEntity.ok(ApiResponse.success(java.util.Map.of("url", url), "Signed report URL expires in 15 minutes"));
+        } catch (RuntimeException ex) {
+            log.warn("GCS report archival unavailable for {}: {}", scanId, ex.getMessage());
+            return ResponseEntity.ok(ApiResponse.success(java.util.Map.of("downloadUrl", "/api/reports/download/" + scanId), "Cloud archival unavailable; use direct PDF download"));
+        }
+    }
 
     @GetMapping(value = {"/download/{scanId}", "/{scanId}/pdf"}, produces = {MediaType.APPLICATION_PDF_VALUE, MediaType.APPLICATION_OCTET_STREAM_VALUE, MediaType.ALL_VALUE})
     @Transactional(readOnly = true)

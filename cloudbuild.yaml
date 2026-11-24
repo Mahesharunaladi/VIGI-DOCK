@@ -1,0 +1,25 @@
+substitutions:
+  _REGION: asia-south1
+  _REPOSITORY: vigidock
+  _SERVICE: vigidock
+  _CLOUD_SQL_INSTANCE: ""
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: [build, -t, '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$COMMIT_SHA', .]
+  - name: gcr.io/cloud-builders/docker
+    args: [push, '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$COMMIT_SHA']
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - '${_SERVICE}'
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$COMMIT_SHA
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --set-env-vars=SPRING_PROFILES_ACTIVE=gcp,GCP_PROJECT_ID=$PROJECT_ID,GCP_REGION=${_REGION}
+      - --set-secrets=GEMINI_API_KEY=gemini-api-key:latest
+      - --add-cloudsql-instances=${_CLOUD_SQL_INSTANCE}
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_SERVICE}:$COMMIT_SHA'

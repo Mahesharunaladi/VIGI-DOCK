@@ -1,0 +1,58 @@
+---
+- name: Apply hardened Kubernetes manifest
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    target_namespace: default
+    use_gke: false
+  tasks:
+    - name: Configure isolated GKE credentials
+      block:
+        - name: Fetch GKE credentials
+          ansible.builtin.command:
+            argv:
+              - gcloud
+              - container
+              - clusters
+              - get-credentials
+              - "{{ gke_cluster_name }}"
+              - --zone
+              - "{{ gke_zone }}"
+              - --project
+              - "{{ gcp_project_id }}"
+          environment:
+            USE_GKE_GCLOUD_AUTH_PLUGIN: "True"
+          when: use_gke | bool
+
+    - name: Apply manifest and verify rollout
+      block:
+        - name: Apply hardened manifest
+          kubernetes.core.k8s:
+            state: present
+            src: "{{ manifest_path }}"
+            namespace: "{{ target_namespace }}"
+            wait: true
+            wait_timeout: 60
+        - name: List deployments for rollout checks
+          ansible.builtin.command:
+            argv: [kubectl, get, deployments, --namespace, "{{ target_namespace }}", -o, "name"]
+          register: deployments
+          changed_when: false
+          failed_when: false
+        - name: Verify deployment rollout
+          ansible.builtin.command:
+            argv: [kubectl, rollout, status, "{{ item }}", --namespace, "{{ target_namespace }}", --timeout=60s]
+          loop: "{{ deployments.stdout_lines | default([]) }}"
+          when: deployments.stdout_lines | default([]) | length > 0
+          changed_when: false
+      rescue:
+        - name: Capture Kubernetes events after failure
+          ansible.builtin.command:
+            argv: [kubectl, get, events, --namespace, "{{ target_namespace }}", --sort-by=.lastTimestamp]
+          register: k8s_events
+          changed_when: false
+          failed_when: false
+        - name: Report rollout failure and events
+          ansible.builtin.fail:
+            msg: "Kubernetes remediation failed. Events: {{ k8s_events.stdout | default('unavailable') }}"

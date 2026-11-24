@@ -21,7 +21,19 @@
         <java.version>17</java.version>
         <itext.version>7.2.5</itext.version>
         <lombok.version>1.18.42</lombok.version>
+        <spring-cloud-gcp.version>5.7.0</spring-cloud-gcp.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.google.cloud</groupId>
+                <artifactId>spring-cloud-gcp-dependencies</artifactId>
+                <version>${spring-cloud-gcp.version}</version>
+                <type>pom</type><scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <!-- Spring Boot Starters -->
@@ -29,6 +41,10 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-actuator</artifactId></dependency>
+        <dependency><groupId>com.google.cloud</groupId><artifactId>spring-cloud-gcp-starter-sql-postgresql</artifactId></dependency>
+        <dependency><groupId>com.google.cloud</groupId><artifactId>spring-cloud-gcp-starter-secretmanager</artifactId></dependency>
+        <dependency><groupId>com.google.cloud</groupId><artifactId>spring-cloud-gcp-starter-storage</artifactId></dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

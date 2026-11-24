@@ -46,6 +46,8 @@ public class TrivyScannerService {
     // Pattern to ensure Docker image name does not contain illegal control characters
     private static final Pattern SAFE_IMAGE_NAME_PATTERN =
             Pattern.compile("^[a-zA-Z0-9_.:/@-]+$");
+    private static final Pattern GCP_ARTIFACT_IMAGE_PATTERN = Pattern.compile(
+            "^[a-z0-9-]+-docker\\.pkg\\.dev/[a-zA-Z0-9._/-]+(:[a-zA-Z0-9._-]+|@sha256:[a-f0-9]{64})?$");
 
     /**
      * Scans a Docker image using Trivy CLI via ProcessBuilder.
@@ -64,7 +66,7 @@ public class TrivyScannerService {
                 imageName
         );
 
-        String jsonOutput = executeProcess(command, "Docker Image Scan [" + imageName + "]");
+        String jsonOutput = executeProcess(command, "Docker Image Scan [" + imageName + "]", imageName);
         return parseTrivyOutput(jsonOutput, imageName, "DOCKER_IMAGE");
     }
 
@@ -128,9 +130,17 @@ public class TrivyScannerService {
      * Executes process securely with ProcessBuilder, capturing stdout/stderr without deadlocks.
      */
     private String executeProcess(List<String> command, String operationName) {
+        return executeProcess(command, operationName, null);
+    }
+
+    private String executeProcess(List<String> command, String operationName, String imageName) {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         // Do not use shell (/bin/sh -c), invoke the binary directly with discrete arguments
         processBuilder.environment().put("TRIVY_NO_PROGRESS", "true");
+        if (imageName != null && imageName.contains("-docker.pkg.dev/")) {
+            String adc = System.getenv("GOOGLE_APPLICATION_CREDENTIALS");
+            if (StringUtils.hasText(adc)) processBuilder.environment().put("GOOGLE_APPLICATION_CREDENTIALS", adc);
+        }
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         boolean lockAcquired = false;
@@ -372,11 +382,15 @@ public class TrivyScannerService {
         return sb.toString().trim();
     }
 
-    private void validateImageName(String imageName) {
+    void validateImageName(String imageName) {
         if (!StringUtils.hasText(imageName)) {
             throw new IllegalArgumentException("Docker image name cannot be null or empty");
         }
-        if (!SAFE_IMAGE_NAME_PATTERN.matcher(imageName.trim()).matches()) {
+        String candidate = imageName.trim();
+        boolean gcpRegistry = candidate.contains("-docker.pkg.dev/") && GCP_ARTIFACT_IMAGE_PATTERN.matcher(candidate).matches();
+        boolean dockerHubReference = SAFE_IMAGE_NAME_PATTERN.matcher(candidate).matches()
+                && !candidate.contains("-docker.pkg.dev/");
+        if (candidate.matches(".*[;&|$`].*") || (!gcpRegistry && !dockerHubReference)) {
             throw new IllegalArgumentException("Invalid Docker image name format: Contains disallowed characters");
         }
     }

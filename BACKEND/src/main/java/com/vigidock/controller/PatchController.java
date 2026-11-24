@@ -4,6 +4,8 @@ import com.vigidock.dto.ApiResponse;
 import com.vigidock.dto.PatchRequest;
 import com.vigidock.dto.PatchResponse;
 import com.vigidock.service.GitPatchService;
+import com.vigidock.service.AnsibleRemediationService;
+import com.vigidock.dto.AnsibleDeployRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,17 @@ import org.springframework.web.bind.annotation.*;
 public class PatchController {
 
     private final GitPatchService gitPatchService;
+    private final AnsibleRemediationService ansibleRemediationService;
+
+    @PostMapping("/deploy-k8s")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> deployK8s(@Valid @RequestBody AnsibleDeployRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(ansibleRemediationService.deployHardenedK8sManifest(request), "Kubernetes remediation executed"));
+    }
+
+    @PostMapping("/host-hardening-check")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> hostHardeningCheck() {
+        return ResponseEntity.ok(ApiResponse.success(ansibleRemediationService.runHostHardeningCheck(), "Host hardening check completed"));
+    }
 
     @PostMapping("/generate-patch")
     public ResponseEntity<ApiResponse<PatchResponse>> generatePatch(@Valid @RequestBody PatchRequest request) {
